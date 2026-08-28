@@ -58,8 +58,9 @@ pub struct NsgiAddr {
     /// Port in **host** byte order; 0 when not applicable. Note that
     /// `sockaddr_in::sin_port` is network byte order.
     pub port: u16,
-    /// IPv6 interface index, as carried by `sockaddr_in6::sin6_scope_id`.
-    /// 0 when unknown or not applicable.
+    /// IPv6 zone index, as carried by `sockaddr_in6::sin6_scope_id`. NSGI does not interpret the
+    /// value, which is meaningful only on the node that produced it. 0 is the default zone, and is
+    /// what a host reports for an address needing no zone.
     pub scope_id: u32,
     /// Address bytes in network byte order, IPv4 in the first 4; unused bytes are zero.
     /// The host **must** unmap IPv4-mapped IPv6 addresses (`::ffff:0:0/96`) to `NSGI_AF_INET`.
