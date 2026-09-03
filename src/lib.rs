@@ -351,13 +351,9 @@ pub struct NsgiResponse {
     pub read_body: NsgiReadResponseBody,
 }
 
-/// Status values returned by `NsgiApp`. Zero and positive values report outcomes that are not
-/// failures; negative values are reserved. No failure status is defined: an application that
-/// cannot produce a response answers with one.
-///
 /// The response is in the response out-parameter and the request is complete.
 pub const NSGI_HANDLE_DONE: i32 = 0;
-/// The application supplies the response later through `NsgiRequest::respond`, and left the
+/// The application supplies the response later through [`NsgiRequest::respond`], and left the
 /// response out-parameter untouched.
 pub const NSGI_HANDLE_PENDING: i32 = 1;
 
@@ -365,22 +361,24 @@ pub const NSGI_HANDLE_PENDING: i32 = 1;
 ///
 /// The host calls it once it has stopped wanting the response, such as when the client
 /// disconnected, its own timeout fired, or the connection failed. `cancel_ctx` is
-/// `NsgiPending::cancel_ctx` passed back unchanged.
+/// [`NsgiPending::cancel_ctx`] passed back unchanged.
 ///
-/// It does not release the application from calling `NsgiRequest::respond`: the application
-/// makes that call in every case, and the host discards the response to a request it has
-/// abandoned. Nothing reaches `cancel_ctx` once `respond` has returned, so that is where the
-/// application releases it.
+/// The application still calls [`NsgiRequest::respond`] in every case, and the host discards the
+/// response to a request it has abandoned. Nothing reaches `cancel_ctx` once `respond` has
+/// returned, so that is where the application releases it.
 ///
 /// # Ordering
 /// The call happens at most once and never before `nsgi_handle` has returned
-/// `NSGI_HANDLE_PENDING`; a host that detected the condition earlier makes it once that return
-/// has happened. It never runs concurrently with the request's `respond` call and never follows
-/// one, so a `respond` call may be waiting on it: it must not wait on anything that path holds,
-/// and must not itself call `respond`. The host orders it so that state the host wrote
-/// beforehand is visible within it. Against the application's own work on the request it is not
-/// ordered at all, the condition it reports arriving independently of that work, and the
-/// request's handles keep their meanings afterwards and report their own errors.
+/// [`NSGI_HANDLE_PENDING`]; a host that detected the condition earlier makes it once that return
+/// has happened.
+///
+/// It never runs concurrently with the request's `respond` call and never follows one, so a
+/// `respond` call may be waiting on it: it must not wait on anything that path holds, and must
+/// not itself call `respond`.
+///
+/// The host orders it so that state the host wrote beforehand is visible within it. Against the
+/// application's own work on the request it is not ordered at all, and the request's handles
+/// keep their meanings afterwards and report their own errors.
 ///
 /// # Host obligations
 /// A host may reclaim a canceled request once this call has returned, after which a `respond`
@@ -389,17 +387,18 @@ pub const NSGI_HANDLE_PENDING: i32 = 1;
 /// request while the application may still hold it.
 pub type NsgiCancel = unsafe extern "C" fn(cancel_ctx: *mut c_void);
 
-/// The application's registration for cancellation notice, written on `NSGI_HANDLE_PENDING`.
+/// The application's registration for cancellation notice, written on [`NSGI_HANDLE_PENDING`].
 ///
 /// The host initializes it to no cancellation before calling `nsgi_handle`, so an application
 /// wanting none leaves it untouched. It is the only out-parameter the host writes before the
 /// call.
 #[repr(C)]
 pub struct NsgiPending {
-    /// Opaque application context, passed back to `cancel` unchanged. The host must not
-    /// dereference or free this.
+    /// Opaque application context pointer, possibly null. The host must not dereference or free
+    /// this.
     pub cancel_ctx: *mut c_void,
-    /// Cancellation notice. `None` when the application wants none.
+    /// Cancellation notice, receiving `cancel_ctx` unchanged. `None` when the application wants
+    /// none.
     pub cancel: Option<NsgiCancel>,
 }
 
@@ -416,19 +415,14 @@ pub struct NsgiPending {
 /// ) -> i32 { ... }
 /// ```
 ///
-/// Returns one of the `NSGI_HANDLE_*` statuses. Neither out-parameter is null, and each is
-/// written only on the status that names it.
+/// Returns one of the `NSGI_HANDLE_*` statuses. An application that fails answers with a
+/// response rather than a status.
 ///
-/// # Execution Constraints
-///
-/// - **Lifetimes**: `req` is never null and addresses storage the host owns; the application must
-///   not free it, and must not hold references to it or any of its fields after returning,
-///   whichever status it returns. `host_ctx` and the callbacks beside it are values rather than
-///   borrowed memory, so an application that copied them out goes on calling them afterwards.
-/// - **Thread Safety**: The host may invoke this entry point concurrently from multiple OS threads.
-///   The implementation must be reentrant and must not rely on unsynchronized mutable state.
-/// - **No Panics**: Unwinding into the host is Undefined Behavior.
-///   Catch panics internally or use `panic = "abort"`.
+/// # Lifetimes
+/// `req` addresses storage the host owns; the application must not free it, and must not hold
+/// references to it or any of its fields after returning, whichever status it returns.
+/// `host_ctx` and the callbacks beside it are values rather than borrowed memory, so an
+/// application that copied them out goes on using them afterwards.
 pub type NsgiApp = unsafe extern "C" fn(
     req: *const NsgiRequest,
     out_res: *mut NsgiResponse,
@@ -444,13 +438,15 @@ pub type NsgiApp = unsafe extern "C" fn(
 /// pub unsafe extern "C" fn nsgi_free_response(res: *const NsgiResponse) { ... }
 /// ```
 ///
-/// The host **must** call this exactly once for every response the application handed over,
-/// through either path and including one carried by a `NsgiRequest::respond` call the host
+/// # Host obligations
+/// The host must call this exactly once for every response the application handed over,
+/// through either path and including one carried by a [`NsgiRequest::respond`] call the host
 /// discarded, so the application can release whatever it allocated. The call comes after the
-/// last `NsgiResponse::read_body` call and never concurrently with one, whether or not the
+/// last [`NsgiResponse::read_body`] call and never concurrently with one, whether or not the
 /// body reached completion.
 ///
-/// The pointer is never null and addresses storage the host owns, borrowed for the duration of
-/// the call: the application releases what the fields point to, not the storage the pointer
-/// addresses, and does not retain the pointer past the return.
+/// # Lifetimes
+/// The pointer addresses storage the host owns, borrowed for the duration of the call: the
+/// application releases what the fields point to, not the storage the pointer addresses, and
+/// does not retain the pointer past the return.
 pub type NsgiFreeResponse = unsafe extern "C" fn(*const NsgiResponse);
