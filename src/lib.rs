@@ -23,6 +23,13 @@
 //! report outcomes that are not failures; negative values report errors, and a negative value no
 //! status list enumerates is reserved.
 //!
+//! ## Callback Safety
+//!
+//! Unwinding across a callback boundary is Undefined Behavior; an implementation catches its own
+//! panics or builds with `panic = "abort"`. Calls for different requests may run concurrently on
+//! any thread, so an implementation is reentrant and does not rely on unsynchronized mutable
+//! state.
+//!
 //! ## Call Ordering
 //!
 //! Calls to one callback for the same request or response are never concurrent with each other,
