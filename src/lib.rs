@@ -6,24 +6,28 @@
 //! NSGI is a language-agnostic gateway interface protocol that connects any C ABI host with
 //! application logic written in any language supporting FFI.
 //!
-//! ## NSGI String Data Convention
-//!
-//! **All** text and data fields in this protocol are represented as a pair:
-//! a raw byte pointer (`*const u8`) and a length (`usize`). They are **NOT** null-terminated.
-//! Both the host and the application **must** rely entirely on the companion `_len` field to
-//! determine the extent of the data; never pass these pointers to functions that expect C strings.
-//!
 //! ## Field Validity
 //!
-//! Every text field is free of the bytes that delimit an HTTP/1.1 message: no NUL, LF or CR at
-//! any position, and no leading or trailing SP or HTAB. A host rejects a request carrying them,
-//! with 400 unless a more suitable status applies. An application does not return them either,
-//! and a host answers 500 rather than transmitting them. Bodies carry data rather than text and
-//! are not covered.
+//! Every field carrying HTTP message text is free of the bytes that delimit an HTTP/1.1 message:
+//! no NUL, LF or CR at any position, and no leading or trailing SP or HTAB. A host rejects a
+//! request carrying them, with 400 unless a more suitable status applies. An application does not
+//! return them either, and a host answers 500 rather than transmitting them.
 //!
-//! The rule covers bytes as received. Percent-encoding is legal throughout a request target, so
-//! `/a%0Db` is valid here and decodes to a path holding CR; a host does not decode, and it is
-//! the response side that keeps a decoded delimiter off the wire.
+//! ## Pointer Validity
+//!
+//! A pointer is non-null unless its own documentation says otherwise.
+//!
+//! ## Status Values
+//!
+//! A callback returns one of the statuses its own documentation names. Zero and positive values
+//! report outcomes that are not failures; negative values report errors, and a negative value no
+//! status list enumerates is reserved.
+//!
+//! ## Call Ordering
+//!
+//! Calls to one callback for the same request or response are never concurrent with each other,
+//! whichever thread makes them, and are ordered so that state the application wrote during one
+//! call is visible in the next.
 
 #![no_std]
 
