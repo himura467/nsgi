@@ -9,7 +9,7 @@ A language-agnostic gateway interface protocol over C ABI. This crate provides t
 | `NsgiAddr` | A transport address in binary form |
 | `NsgiHeader` | A single HTTP header name/value pair |
 | `NsgiRequest` | HTTP request passed from host to application |
-| `NsgiResponse` | HTTP response handed from application to host |
+| `NsgiResponse` | HTTP response passed from application to host |
 | `NsgiPending` | Cancellation registration the application writes when it defers the response |
 | `NsgiApp` | Type alias for the `nsgi_handle` entry point signature |
 | `NsgiFreeResponse` | Type alias for the `nsgi_free_response` cleanup signature |
