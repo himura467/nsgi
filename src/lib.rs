@@ -8,10 +8,10 @@
 //!
 //! ## Field Validity
 //!
-//! Every field carrying HTTP message text is free of the bytes that delimit an HTTP/1.1 message:
-//! no NUL, LF or CR at any position, and no leading or trailing SP or HTAB. A host rejects a
-//! request carrying them, with 400 unless a more suitable status applies. An application does not
-//! return them either, and a host answers 500 rather than transmitting them.
+//! Every field carrying HTTP message text is free of the bytes that delimit an HTTP/1.1 message: no
+//! NUL, LF or CR at any position, and no leading or trailing SP or HTAB. A host rejects a request
+//! carrying them, with 400 unless a more suitable status applies. An application does not return
+//! them either, and a host answers 500 rather than transmitting them.
 //!
 //! ## Pointer Validity
 //!
@@ -27,14 +27,13 @@
 //!
 //! Unwinding across a callback boundary is Undefined Behavior; an implementation catches its own
 //! panics or builds with `panic = "abort"`. Calls for different requests may run concurrently on
-//! any thread, so an implementation is reentrant and does not rely on unsynchronized mutable
-//! state.
+//! any thread, so an implementation is reentrant and does not rely on unsynchronized mutable state.
 //!
 //! ## Call Ordering
 //!
 //! Calls to one callback for the same request or response are never concurrent with each other,
-//! whichever thread makes them, and are ordered so that state the application wrote during one
-//! call is visible in the next.
+//! whichever thread makes them, and are ordered so that state the application wrote during one call
+//! is visible in the next.
 
 #![no_std]
 
@@ -73,11 +72,11 @@ pub struct NsgiAddr {
     /// IPv6 zone index, as carried by `sockaddr_in6::sin6_scope_id`, meaningful only on the node
     /// that produced it. A host reports 0 for an address needing no zone.
     pub scope_id: u32,
-    /// Address bytes in network byte order, IPv4 in the first 4; unused bytes are zero.
-    /// The host must unmap IPv4-mapped IPv6 addresses (`::ffff:0:0/96`) to [`NSGI_AF_INET`].
+    /// Address bytes in network byte order, IPv4 in the first 4; unused bytes are zero. The host
+    /// must unmap IPv4-mapped IPv6 addresses (`::ffff:0:0/96`) to [`NSGI_AF_INET`].
     pub octets: [u8; 16],
-    /// UNIX socket path bytes. Null unless `family` is [`NSGI_AF_UNIX`];
-    /// an unnamed socket has a `path_len` of 0.
+    /// UNIX socket path bytes. Null unless `family` is [`NSGI_AF_UNIX`]; an unnamed socket has a
+    /// `path_len` of 0.
     pub path: *const u8,
     pub path_len: usize,
 }
@@ -86,15 +85,15 @@ pub struct NsgiAddr {
 ///
 /// # Header names
 /// Names are lowercase in both directions: the host folds the names it delivers, and the
-/// application supplies folded names. Folding maps bytes `0x41..=0x5A` to `0x61..=0x7A`
-/// and leaves every other byte alone; values are unaffected. A host folds any uppercase
-/// name it receives before transmitting.
+/// application supplies folded names. Folding maps bytes `0x41..=0x5A` to `0x61..=0x7A` and leaves
+/// every other byte alone; values are unaffected. A host folds any uppercase name it receives
+/// before transmitting.
 ///
 /// Beyond case, a name carries no byte in `0x00..=0x20` or `0x7F..=0xFF`, and no colon.
 ///
 /// # Ownership
-/// Carried by [`NsgiRequest`], these fields are borrowed from the host and the application must
-/// not free them. Carried by [`NsgiResponse`], they are the application's own; the host never
+/// Carried by [`NsgiRequest`], these fields are borrowed from the host and the application must not
+/// free them. Carried by [`NsgiResponse`], they are the application's own; the host never
 /// interprets or frees them, and static memory (e.g. `b"content-type"`) is as legal as heap.
 #[repr(C)]
 pub struct NsgiHeader {
@@ -119,18 +118,17 @@ pub const NSGI_VAR_ERROR: i32 = -1;
 
 /// The canonical type signature of the host's variable lookup callback.
 ///
-/// Carries connection and server metadata such as `tls.version`, `tls.cipher`,
-/// `server.software`, `proxy_protocol.src_addr`. Names are lowercase ASCII,
-/// dot-separated, and compared bytewise. Request headers are not available here;
-/// they are already in [`NsgiRequest::headers`].
+/// Carries connection and server metadata such as `tls.version`, `tls.cipher`, `server.software`,
+/// `proxy_protocol.src_addr`. Names are lowercase ASCII, dot-separated, and compared bytewise.
+/// Request headers are not available here; they are already in [`NsgiRequest::headers`].
 ///
 /// `host_ctx` is [`NsgiRequest::host_ctx`] passed back unchanged. On [`NSGI_VAR_OK`] the host
-/// writes a pointer and length borrowed for the duration of the `nsgi_handle` call, or, for a
-/// call made after that return, until the next `get_var` call for the same request; on any
-/// other return the out-params are left untouched.
+/// writes a pointer and length borrowed for the duration of the `nsgi_handle` call, or, for a call
+/// made after that return, until the next `get_var` call for the same request; on any other return
+/// the out-params are left untouched.
 ///
-/// Returns one of the `NSGI_VAR_*` statuses. A host that cannot report a value meeting the
-/// [field validity rule](crate#field-validity) answers [`NSGI_VAR_ERROR`].
+/// Returns one of the `NSGI_VAR_*` statuses. A host that cannot report a value meeting the [field
+/// validity rule](crate#field-validity) answers [`NSGI_VAR_ERROR`].
 pub type NsgiGetVar = unsafe extern "C" fn(
     host_ctx: *mut c_void,
     name: *const u8,
@@ -143,8 +141,8 @@ pub type NsgiGetVar = unsafe extern "C" fn(
 pub const NSGI_REQUEST_BODY_OK: i32 = 0;
 /// The body is complete; no further bytes will follow.
 pub const NSGI_REQUEST_BODY_END: i32 = 1;
-/// No bytes are available at this moment, and more may follow; the application calls
-/// `read_body` again. A synchronous host blocks instead of returning this.
+/// No bytes are available at this moment, and more may follow; the application calls `read_body`
+/// again. A synchronous host blocks instead of returning this.
 pub const NSGI_REQUEST_BODY_AGAIN: i32 = 2;
 /// The connection ended before the body was complete.
 pub const NSGI_REQUEST_BODY_ERROR_TERMINATED: i32 = -1;
@@ -157,8 +155,8 @@ pub const NSGI_REQUEST_BODY_ERROR_TIMEOUT: i32 = -4;
 
 /// The canonical type signature of the host's request body read callback.
 ///
-/// Delivers the request body as chunks borrowed from host memory, one per call, in the order
-/// the bytes arrived. `host_ctx` is [`NsgiRequest::host_ctx`] passed back unchanged. On
+/// Delivers the request body as chunks borrowed from host memory, one per call, in the order the
+/// bytes arrived. `host_ctx` is [`NsgiRequest::host_ctx`] passed back unchanged. On
 /// [`NSGI_REQUEST_BODY_OK`] the host writes the chunk pointer and length; on any other status the
 /// out-params are left untouched.
 ///
@@ -175,9 +173,9 @@ pub const NSGI_REQUEST_BODY_ERROR_TIMEOUT: i32 = -4;
 /// status. A request carrying no body reports [`NSGI_REQUEST_BODY_END`] on the first call.
 ///
 /// # Host obligations
-/// The host answers `Expect: 100-continue` on the first call and not before it. An application
-/// may respond with the body unread; the host then drains the remainder or closes the
-/// connection rather than parsing those bytes as a subsequent message.
+/// The host answers `Expect: 100-continue` on the first call and not before it. An application may
+/// respond with the body unread; the host then drains the remainder or closes the connection rather
+/// than parsing those bytes as a subsequent message.
 pub type NsgiReadRequestBody = unsafe extern "C" fn(
     host_ctx: *mut c_void,
     out_chunk: *mut *const u8,
@@ -191,41 +189,40 @@ pub type NsgiReadRequestBody = unsafe extern "C" fn(
 /// once for every such request, and never for one it answered through the out-parameter.
 ///
 /// # Lifetimes
-/// The pointer addresses storage the application owns, borrowed for the duration of the call;
-/// the host copies whatever it keeps.
+/// The pointer addresses storage the application owns, borrowed for the duration of the call; the
+/// host copies whatever it keeps.
 ///
 /// # Ordering
 /// The call may come from any thread, including one the host did not create, and may precede
-/// `nsgi_handle` returning [`NSGI_HANDLE_PENDING`], which the host waits for before treating
-/// the response as available. It must not come from within `nsgi_handle` on the thread running
-/// it, where the application answers through the out-parameter instead, nor from within
-/// [`NsgiCancel`].
+/// `nsgi_handle` returning [`NSGI_HANDLE_PENDING`], which the host waits for before treating the
+/// response as available. It must not come from within `nsgi_handle` on the thread running it,
+/// where the application answers through the out-parameter instead, nor from within [`NsgiCancel`].
 ///
 /// An application that both made this call and returned [`NSGI_HANDLE_DONE`] produces two
 /// responses: the host transmits the one in the out-parameter and passes the other to
 /// `nsgi_free_response` without transmitting it.
 ///
-/// The host orders the call so that state the application wrote before making it is visible to
-/// the thread that afterwards reads the response and calls [`NsgiResponse::read_body`].
+/// The host orders the call so that state the application wrote before making it is visible to the
+/// thread that afterwards reads the response and calls [`NsgiResponse::read_body`].
 pub type NsgiRespond = unsafe extern "C" fn(host_ctx: *mut c_void, res: *const NsgiResponse);
 
 /// An HTTP request constructed by the host and passed to the application.
 ///
 /// # Ownership
 /// Every pointer field is borrowed from the host for the duration of the `nsgi_handle` call. The
-/// application must not free any of them. Body chunks are borrowed on the narrower window
-/// described on [`NsgiReadRequestBody`].
+/// application must not free any of them. Body chunks are borrowed on the narrower window described
+/// on [`NsgiReadRequestBody`].
 #[repr(C)]
 pub struct NsgiRequest {
-    /// One of the `NSGI_SCHEME_*` constants. Describes the hop the host itself terminated;
-    /// never derived from `X-Forwarded-Proto`.
+    /// One of the `NSGI_SCHEME_*` constants. Describes the hop the host itself terminated; never
+    /// derived from `X-Forwarded-Proto`.
     pub scheme: u8,
     /// HTTP major version, 0 when the version is unknown.
     pub http_version_major: u8,
     /// HTTP minor version, 0 when the version is unknown or has no minor part.
     pub http_version_minor: u8,
-    /// The transport peer that opened the connection. Null when the host has no peer.
-    /// Never derived from `X-Forwarded-For` or `Forwarded`.
+    /// The transport peer that opened the connection. Null when the host has no peer. Never
+    /// derived from `X-Forwarded-For` or `Forwarded`.
     pub peer: *const NsgiAddr,
     /// The local address the connection was accepted on. Null when the host has none.
     pub local: *const NsgiAddr,
@@ -233,9 +230,9 @@ pub struct NsgiRequest {
     pub method: *const u8,
     pub method_len: usize,
     /// Authority component bytes, as received and including any port. Taken from the request
-    /// target when it is in absolute form, otherwise from `:authority` or `Host`. Never
-    /// carries the deprecated userinfo subcomponent; a host rejects such a request.
-    /// Null when the request conveys no authority.
+    /// target when it is in absolute form, otherwise from `:authority` or `Host`. Never carries
+    /// the deprecated userinfo subcomponent; a host rejects such a request. Null when the request
+    /// conveys no authority.
     pub authority: *const u8,
     pub authority_len: usize,
     /// Path component bytes as received (e.g. `b"/api/v1"`); a host does not percent-decode.
@@ -246,8 +243,8 @@ pub struct NsgiRequest {
     pub query: *const u8,
     pub query_len: usize,
     /// Request headers, carrying no `host` (reported through `authority`), no `content-length`
-    /// (through `content_length`), no `transfer-encoding` (already decoded), and no
-    /// pseudo-header. Null when `headers_len` is 0.
+    /// (through `content_length`), no `transfer-encoding` (already decoded), and no pseudo-header.
+    /// Null when `headers_len` is 0.
     pub headers: *const NsgiHeader,
     pub headers_len: usize,
     /// The body length the request declared, or [`NSGI_CONTENT_LENGTH_UNKNOWN`] when it declared
@@ -259,8 +256,8 @@ pub struct NsgiRequest {
     /// Opaque host context pointer, possibly null. The application must not dereference or free
     /// this.
     pub host_ctx: *mut c_void,
-    /// Host variable lookup, receiving `host_ctx` unchanged. `None` when the host supplies
-    /// no variables.
+    /// Host variable lookup, receiving `host_ctx` unchanged. `None` when the host supplies no
+    /// variables.
     pub get_var: Option<NsgiGetVar>,
     /// Request body delivery, receiving `host_ctx` unchanged. The host supplies it for every
     /// request, including one that carries no body.
@@ -274,46 +271,44 @@ pub struct NsgiRequest {
 pub const NSGI_RESPONSE_BODY_OK: i32 = 0;
 /// The body is complete; no further bytes will follow.
 pub const NSGI_RESPONSE_BODY_END: i32 = 1;
-/// No bytes are available at this moment, and more may follow; the host calls `read_body`
-/// again. A synchronous application blocks instead of returning this.
+/// No bytes are available at this moment, and more may follow; the host calls `read_body` again. A
+/// synchronous application blocks instead of returning this.
 pub const NSGI_RESPONSE_BODY_AGAIN: i32 = 2;
-/// The application failed and the body will not complete. The status line is already committed,
-/// so the host leaves the message incomplete rather than completing it: it sends no terminating
-/// chunk, does not pad to a declared length, and closes the connection or resets the stream.
+/// The application failed and the body will not complete. The status line is already committed, so
+/// the host leaves the message incomplete rather than completing it: it sends no terminating chunk,
+/// does not pad to a declared length, and closes the connection or resets the stream.
 pub const NSGI_RESPONSE_BODY_ERROR: i32 = -1;
 
 /// The canonical type signature of the application's response body read callback.
 ///
-/// Delivers the response body as chunks borrowed from application memory, one per call.
-/// `app_ctx` is [`NsgiResponse::app_ctx`] passed back unchanged. On [`NSGI_RESPONSE_BODY_OK`] the
-/// application writes the chunk pointer and length; on any other status the out-params are left
-/// untouched.
+/// Delivers the response body as chunks borrowed from application memory, one per call. `app_ctx`
+/// is [`NsgiResponse::app_ctx`] passed back unchanged. On [`NSGI_RESPONSE_BODY_OK`] the application
+/// writes the chunk pointer and length; on any other status the out-params are left untouched.
 ///
 /// Returns one of the `NSGI_RESPONSE_BODY_*` statuses.
 ///
 /// # Chunk lifetime
 /// A chunk stays valid until the next call for the same response, and never beyond
-/// `nsgi_free_response`. A host that transmitted part of a chunk keeps the remainder by not
-/// calling again; one coalescing several chunks into a single write copies them.
+/// `nsgi_free_response`. A host that transmitted part of a chunk keeps the remainder by not calling
+/// again; one coalescing several chunks into a single write copies them.
 ///
-/// The callback runs after `nsgi_handle` has returned, so a chunk must not point into the
-/// request, into a value obtained from `get_var`, or into a chunk obtained from
-/// [`NsgiRequest::read_body`].
+/// The callback runs after `nsgi_handle` has returned, so a chunk must not point into the request,
+/// into a value obtained from `get_var`, or into a chunk obtained from [`NsgiRequest::read_body`].
 ///
 /// # Terminal statuses
 /// Once [`NSGI_RESPONSE_BODY_END`] or [`NSGI_RESPONSE_BODY_ERROR`] is reported, every later call
-/// reports that same status. A response carrying no body reports [`NSGI_RESPONSE_BODY_END`] on
-/// the first call.
+/// reports that same status. A response carrying no body reports [`NSGI_RESPONSE_BODY_END`] on the
+/// first call.
 ///
 /// # Ordering
 /// A call may come from a thread other than the one that ran `nsgi_handle`.
 ///
 /// # Host obligations
-/// A host unable to accept more bytes at this moment stops calling until it can, which is the
-/// whole of backpressure. It may instead stop permanently and go straight to
-/// `nsgi_free_response`, which is what a client disconnecting, a host timeout, or a connection
-/// error looks like from the application's side; abandonment carries no status. A callback that
-/// neither yields nor completes is bounded by the host's idle timeout.
+/// A host unable to accept more bytes at this moment stops calling until it can, which is the whole
+/// of backpressure. It may instead stop permanently and go straight to `nsgi_free_response`, which
+/// is what a client disconnecting, a host timeout, or a connection error looks like from the
+/// application's side; abandonment carries no status. A callback that neither yields nor completes
+/// is bounded by the host's idle timeout.
 ///
 /// The host may transmit the status line and header section as soon as the response reaches it.
 pub type NsgiReadResponseBody = unsafe extern "C" fn(
@@ -326,9 +321,8 @@ pub type NsgiReadResponseBody = unsafe extern "C" fn(
 ///
 /// # Ownership
 /// The application owns all memory reachable through it, and the host borrows it until the
-/// [`NsgiFreeResponse`] call that releases it. The host must not modify or free any field
-/// directly. Body chunks are borrowed on the narrower window described on
-/// [`NsgiReadResponseBody`].
+/// [`NsgiFreeResponse`] call that releases it. The host must not modify or free any field directly.
+/// Body chunks are borrowed on the narrower window described on [`NsgiReadResponseBody`].
 #[repr(C)]
 pub struct NsgiResponse {
     /// HTTP status code (e.g. `200`, `404`).
@@ -373,25 +367,24 @@ pub const NSGI_HANDLE_PENDING: i32 = 1;
 /// has happened.
 ///
 /// It never runs concurrently with the request's `respond` call and never follows one, so a
-/// `respond` call may be waiting on it: it must not wait on anything that path holds, and must
-/// not itself call `respond`.
+/// `respond` call may be waiting on it: it must not wait on anything that path holds, and must not
+/// itself call `respond`.
 ///
 /// The host orders it so that state the host wrote beforehand is visible within it. Against the
-/// application's own work on the request it is not ordered at all, and the request's handles
-/// keep their meanings afterwards and report their own errors.
+/// application's own work on the request it is not ordered at all, and the request's handles keep
+/// their meanings afterwards and report their own errors.
 ///
 /// # Host obligations
-/// A host may reclaim a canceled request once this call has returned, after which a `respond`
-/// call naming that request, or any other call naming it, is discarded rather than undefined.
-/// Reclaiming requires that no value the host has presented as `host_ctx` name a different
-/// request while the application may still hold it.
+/// A host may reclaim a canceled request once this call has returned, after which a `respond` call
+/// naming that request, or any other call naming it, is discarded rather than undefined. Reclaiming
+/// requires that no value the host has presented as `host_ctx` name a different request while the
+/// application may still hold it.
 pub type NsgiCancel = unsafe extern "C" fn(cancel_ctx: *mut c_void);
 
 /// The application's registration for cancellation notice, written on [`NSGI_HANDLE_PENDING`].
 ///
 /// The host initializes it to no cancellation before calling `nsgi_handle`, so an application
-/// wanting none leaves it untouched. It is the only out-parameter the host writes before the
-/// call.
+/// wanting none leaves it untouched. It is the only out-parameter the host writes before the call.
 #[repr(C)]
 pub struct NsgiPending {
     /// Opaque application context pointer, possibly null. The host must not dereference or free
@@ -415,14 +408,14 @@ pub struct NsgiPending {
 /// ) -> i32 { ... }
 /// ```
 ///
-/// Returns one of the `NSGI_HANDLE_*` statuses. An application that fails answers with a
-/// response rather than a status.
+/// Returns one of the `NSGI_HANDLE_*` statuses. An application that fails answers with a response
+/// rather than a status.
 ///
 /// # Lifetimes
 /// `req` addresses storage the host owns; the application must not free it, and must not hold
-/// references to it or any of its fields after returning, whichever status it returns.
-/// `host_ctx` and the callbacks beside it are values rather than borrowed memory, so an
-/// application that copied them out goes on using them afterwards.
+/// references to it or any of its fields after returning, whichever status it returns. `host_ctx`
+/// and the callbacks beside it are values rather than borrowed memory, so an application that
+/// copied them out goes on using them afterwards.
 pub type NsgiApp = unsafe extern "C" fn(
     req: *const NsgiRequest,
     out_res: *mut NsgiResponse,
@@ -439,14 +432,14 @@ pub type NsgiApp = unsafe extern "C" fn(
 /// ```
 ///
 /// # Host obligations
-/// The host must call this exactly once for every response the application handed over,
-/// through either path and including one carried by a [`NsgiRequest::respond`] call the host
-/// discarded, so the application can release whatever it allocated. The call comes after the
-/// last [`NsgiResponse::read_body`] call and never concurrently with one, whether or not the
-/// body reached completion.
+/// The host must call this exactly once for every response the application handed over, through
+/// either path and including one carried by a [`NsgiRequest::respond`] call the host discarded, so
+/// the application can release whatever it allocated. The call comes after the last
+/// [`NsgiResponse::read_body`] call and never concurrently with one, whether or not the body
+/// reached completion.
 ///
 /// # Lifetimes
 /// The pointer addresses storage the host owns, borrowed for the duration of the call: the
-/// application releases what the fields point to, not the storage the pointer addresses, and
-/// does not retain the pointer past the return.
+/// application releases what the fields point to, not the storage the pointer addresses, and does
+/// not retain the pointer past the return.
 pub type NsgiFreeResponse = unsafe extern "C" fn(*const NsgiResponse);
