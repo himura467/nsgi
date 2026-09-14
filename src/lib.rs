@@ -26,8 +26,9 @@
 //! ## Callback safety
 //!
 //! Unwinding across a callback boundary is Undefined Behavior; an implementation catches its own
-//! panics or builds with `panic = "abort"`. Calls for different requests may run concurrently on
-//! any thread, so an implementation is reentrant and does not rely on unsynchronized mutable state.
+//! panics or builds with `panic = "abort"`. Calls for different requests or connections may run
+//! concurrently on any thread, so an implementation is reentrant and does not rely on
+//! unsynchronized mutable state.
 //!
 //! ## Call ordering
 //!
@@ -226,6 +227,10 @@ pub struct NsgiRequest {
     pub peer: *const NsgiAddr,
     /// The local address the connection was accepted on. Null when the host has none.
     pub local: *const NsgiAddr,
+    /// Opaque application connection context pointer, possibly null, returned by
+    /// `nsgi_open_connection` for the connection the request arrived on. The host does not
+    /// dereference or free this.
+    pub connection_ctx: *mut c_void,
     /// HTTP method bytes (e.g. `b"GET"`).
     pub method: *const u8,
     pub method_len: usize,
@@ -346,6 +351,23 @@ pub struct NsgiResponse {
     pub read_body: NsgiReadResponseBody,
 }
 
+/// The canonical type signature of the application's connection open function.
+///
+/// Every NSGI application provides a C ABI function with this signature:
+///
+/// ```rust,ignore
+/// #[no_mangle]
+/// pub unsafe extern "C" fn nsgi_open_connection() -> *mut c_void { ... }
+/// ```
+///
+/// The host calls it at most once for each transport connection it terminates, before calling
+/// `nsgi_handle` for any request on that connection. A host without transport connections treats
+/// each request as arriving on a connection of its own.
+///
+/// The host orders the call so that state the application wrote during it is visible within every
+/// later call that receives the returned context.
+pub type NsgiOpenConnection = unsafe extern "C" fn() -> *mut c_void;
+
 /// The response is in the response out-parameter and the request is complete.
 pub const NSGI_HANDLE_DONE: i32 = 0;
 /// The application supplies the response later through [`NsgiRequest::respond`], and has left the
@@ -414,9 +436,9 @@ pub struct NsgiPending {
 ///
 /// # Lifetimes
 /// `req` addresses storage the host owns; the application does not free it, and does not hold
-/// references to it or any of its fields after returning, whichever status it returns. `host_ctx`
-/// and the callbacks beside it are values rather than borrowed memory, so an application that
-/// copied them out goes on using them afterwards.
+/// references to it or any of its fields after returning, whichever status it returns.
+/// `connection_ctx`, `host_ctx` and the callbacks are values rather than borrowed memory, so an
+/// application that copied them out goes on using them afterwards.
 pub type NsgiApp = unsafe extern "C" fn(
     req: *const NsgiRequest,
     out_res: *mut NsgiResponse,
@@ -444,3 +466,20 @@ pub type NsgiApp = unsafe extern "C" fn(
 /// [`NsgiResponse::read_body`] call and never concurrently with one, whether or not the body
 /// reached completion.
 pub type NsgiFreeResponse = unsafe extern "C" fn(*const NsgiResponse);
+
+/// The canonical type signature of the application's connection close function.
+///
+/// Every NSGI application provides a C ABI function with this signature:
+///
+/// ```rust,ignore
+/// #[no_mangle]
+/// pub unsafe extern "C" fn nsgi_close_connection(connection_ctx: *mut c_void) { ... }
+/// ```
+///
+/// The host calls it once for each `nsgi_open_connection` call, after the connection has delivered
+/// its last request and every `nsgi_handle` and `nsgi_free_response` call for its requests has
+/// returned. `connection_ctx` is the value `nsgi_open_connection` returned, passed back unchanged.
+///
+/// The host orders the call so that state the application wrote during those calls is visible
+/// within it.
+pub type NsgiCloseConnection = unsafe extern "C" fn(connection_ctx: *mut c_void);
