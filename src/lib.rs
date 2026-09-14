@@ -1,39 +1,40 @@
 //! # NSGI: Native Web Server Gateway Interface
 //!
-//! This crate provides the C ABI types and function pointer signature that form the NSGI protocol.
+//! This crate provides the C ABI types and function pointer signatures that form the NSGI protocol.
 //! It is `#![no_std]` and has zero dependencies.
 //!
 //! NSGI is a language-agnostic gateway interface protocol that connects any C ABI host with
 //! application logic written in any language supporting FFI.
 //!
-//! ## Field Validity
+//! ## Field validity
 //!
 //! Every field carrying HTTP message text is free of the bytes that delimit an HTTP/1.1 message: no
 //! NUL, LF or CR at any position, and no leading or trailing SP or HTAB. A host rejects a request
 //! carrying them, with 400 unless a more suitable status applies. An application does not return
 //! them either, and a host answers 500 rather than transmitting them.
 //!
-//! ## Pointer Validity
+//! ## Pointer validity
 //!
 //! A pointer is non-null unless its own documentation says otherwise.
 //!
-//! ## Status Values
+//! ## Status values
 //!
 //! A callback returns one of the statuses its own documentation names. Zero and positive values
 //! report outcomes that are not failures; negative values report errors, and a negative value no
 //! status list enumerates is reserved.
 //!
-//! ## Callback Safety
+//! ## Callback safety
 //!
 //! Unwinding across a callback boundary is Undefined Behavior; an implementation catches its own
-//! panics or builds with `panic = "abort"`. Calls for different requests may run concurrently on
-//! any thread, so an implementation is reentrant and does not rely on unsynchronized mutable state.
+//! panics or builds with `panic = "abort"`. Calls for different requests or connections may run
+//! concurrently on any thread, so an implementation is reentrant and does not rely on
+//! unsynchronized mutable state.
 //!
-//! ## Call Ordering
+//! ## Call ordering
 //!
 //! Calls to one callback for the same request or response are never concurrent with each other,
 //! whichever thread makes them, and are ordered so that state the application wrote during one call
-//! is visible in the next.
+//! is visible within the next.
 
 #![no_std]
 
@@ -45,8 +46,8 @@ pub const NSGI_SCHEME_UNKNOWN: u8 = 0;
 pub const NSGI_SCHEME_HTTP: u8 = 1;
 /// A TLS `https` hop the host terminated.
 pub const NSGI_SCHEME_HTTPS: u8 = 2;
-/// A scheme the host terminated but cannot represent here. A host reporting this must supply
-/// [`NsgiRequest::get_var`] and answer `request.scheme`.
+/// A scheme the host terminated but cannot represent here. A host reporting this supplies
+/// [`NsgiRequest::get_var`] and answers `request.scheme`.
 pub const NSGI_SCHEME_OTHER: u8 = 3;
 
 /// An address the host cannot represent here, though the connection exists.
@@ -61,7 +62,7 @@ pub const NSGI_AF_UNIX: u8 = 3;
 /// A transport address in binary form.
 ///
 /// # Ownership
-/// Borrowed from the host. The application must not free these fields.
+/// These fields are borrowed from the host, and the application does not free them.
 #[repr(C)]
 pub struct NsgiAddr {
     /// One of the `NSGI_AF_*` constants.
@@ -73,7 +74,7 @@ pub struct NsgiAddr {
     /// that produced it. A host reports 0 for an address needing no zone.
     pub scope_id: u32,
     /// Address bytes in network byte order, IPv4 in the first 4; unused bytes are zero. The host
-    /// must unmap IPv4-mapped IPv6 addresses (`::ffff:0:0/96`) to [`NSGI_AF_INET`].
+    /// unmaps IPv4-mapped IPv6 addresses (`::ffff:0:0/96`) to [`NSGI_AF_INET`].
     pub octets: [u8; 16],
     /// UNIX socket path bytes. Null unless `family` is [`NSGI_AF_UNIX`]; an unnamed socket has a
     /// `path_len` of 0.
@@ -92,8 +93,8 @@ pub struct NsgiAddr {
 /// Beyond case, a name carries no byte in `0x00..=0x20` or `0x7F..=0xFF`, and no colon.
 ///
 /// # Ownership
-/// Carried by [`NsgiRequest`], these fields are borrowed from the host and the application must not
-/// free them. Carried by [`NsgiResponse`], they are the application's own; the host never
+/// Carried by [`NsgiRequest`], these fields are borrowed from the host, and the application does
+/// not free them. Carried by [`NsgiResponse`], they are the application's own; the host never
 /// interprets or frees them, and static memory (e.g. `b"content-type"`) is as legal as heap.
 #[repr(C)]
 pub struct NsgiHeader {
@@ -124,11 +125,11 @@ pub const NSGI_VAR_ERROR: i32 = -1;
 ///
 /// `host_ctx` is [`NsgiRequest::host_ctx`] passed back unchanged. On [`NSGI_VAR_OK`] the host
 /// writes a pointer and length borrowed for the duration of the `nsgi_handle` call, or, for a call
-/// made after that return, until the next `get_var` call for the same request; on any other return
-/// the out-params are left untouched.
+/// made after that return, until the next `get_var` call for the same request; on any other status
+/// the out-parameters are left untouched.
 ///
 /// Returns one of the `NSGI_VAR_*` statuses. A host that cannot report a value meeting the [field
-/// validity rule](crate#field-validity) answers [`NSGI_VAR_ERROR`].
+/// validity rule](crate#field-validity) returns [`NSGI_VAR_ERROR`].
 pub type NsgiGetVar = unsafe extern "C" fn(
     host_ctx: *mut c_void,
     name: *const u8,
@@ -158,7 +159,7 @@ pub const NSGI_REQUEST_BODY_ERROR_TIMEOUT: i32 = -4;
 /// Delivers the request body as chunks borrowed from host memory, one per call, in the order the
 /// bytes arrived. `host_ctx` is [`NsgiRequest::host_ctx`] passed back unchanged. On
 /// [`NSGI_REQUEST_BODY_OK`] the host writes the chunk pointer and length; on any other status the
-/// out-params are left untouched.
+/// out-parameters are left untouched.
 ///
 /// Returns one of the `NSGI_REQUEST_BODY_*` statuses.
 ///
@@ -195,7 +196,7 @@ pub type NsgiReadRequestBody = unsafe extern "C" fn(
 /// # Ordering
 /// The call may come from any thread, including one the host did not create, and may precede
 /// `nsgi_handle` returning [`NSGI_HANDLE_PENDING`], which the host waits for before treating the
-/// response as available. It must not come from within `nsgi_handle` on the thread running it,
+/// response as available. It does not come from within `nsgi_handle` on the thread running it,
 /// where the application answers through the out-parameter instead, nor from within [`NsgiCancel`].
 ///
 /// An application that both made this call and returned [`NSGI_HANDLE_DONE`] produces two
@@ -210,7 +211,7 @@ pub type NsgiRespond = unsafe extern "C" fn(host_ctx: *mut c_void, res: *const N
 ///
 /// # Ownership
 /// Every pointer field is borrowed from the host for the duration of the `nsgi_handle` call. The
-/// application must not free any of them. Body chunks are borrowed on the narrower window described
+/// application does not free any of them. Body chunks are borrowed on the narrower window described
 /// on [`NsgiReadRequestBody`].
 #[repr(C)]
 pub struct NsgiRequest {
@@ -226,6 +227,10 @@ pub struct NsgiRequest {
     pub peer: *const NsgiAddr,
     /// The local address the connection was accepted on. Null when the host has none.
     pub local: *const NsgiAddr,
+    /// Opaque application connection context pointer, possibly null, returned by
+    /// `nsgi_open_connection` for the connection the request arrived on. The host does not
+    /// dereference or free this.
+    pub connection_ctx: *mut c_void,
     /// HTTP method bytes (e.g. `b"GET"`).
     pub method: *const u8,
     pub method_len: usize,
@@ -253,7 +258,7 @@ pub struct NsgiRequest {
     /// transfer coding honors the coding alone, reports the length unknown, and closes the
     /// connection after responding.
     pub content_length: u64,
-    /// Opaque host context pointer, possibly null. The application must not dereference or free
+    /// Opaque host context pointer, possibly null. The application does not dereference or free
     /// this.
     pub host_ctx: *mut c_void,
     /// Host variable lookup, receiving `host_ctx` unchanged. `None` when the host supplies no
@@ -283,7 +288,7 @@ pub const NSGI_RESPONSE_BODY_ERROR: i32 = -1;
 ///
 /// Delivers the response body as chunks borrowed from application memory, one per call. `app_ctx`
 /// is [`NsgiResponse::app_ctx`] passed back unchanged. On [`NSGI_RESPONSE_BODY_OK`] the application
-/// writes the chunk pointer and length; on any other status the out-params are left untouched.
+/// writes the chunk pointer and length; on any other status the out-parameters are left untouched.
 ///
 /// Returns one of the `NSGI_RESPONSE_BODY_*` statuses.
 ///
@@ -292,8 +297,9 @@ pub const NSGI_RESPONSE_BODY_ERROR: i32 = -1;
 /// `nsgi_free_response`. A host that transmitted part of a chunk keeps the remainder by not calling
 /// again; one coalescing several chunks into a single write copies them.
 ///
-/// The callback runs after `nsgi_handle` has returned, so a chunk must not point into the request,
-/// into a value obtained from `get_var`, or into a chunk obtained from [`NsgiRequest::read_body`].
+/// The callback runs after `nsgi_handle` has returned, so a chunk does not point into the request,
+/// into a value obtained from [`NsgiRequest::get_var`], or into a chunk obtained from
+/// [`NsgiRequest::read_body`].
 ///
 /// # Terminal statuses
 /// Once [`NSGI_RESPONSE_BODY_END`] or [`NSGI_RESPONSE_BODY_ERROR`] is reported, every later call
@@ -321,7 +327,7 @@ pub type NsgiReadResponseBody = unsafe extern "C" fn(
 ///
 /// # Ownership
 /// The application owns all memory reachable through it, and the host borrows it until the
-/// [`NsgiFreeResponse`] call that releases it. The host must not modify or free any field directly.
+/// `nsgi_free_response` call that releases it. The host does not modify or free any field directly.
 /// Body chunks are borrowed on the narrower window described on [`NsgiReadResponseBody`].
 #[repr(C)]
 pub struct NsgiResponse {
@@ -337,7 +343,7 @@ pub struct NsgiResponse {
     /// provides.
     pub headers: *const NsgiHeader,
     pub headers_len: usize,
-    /// Opaque application context pointer, possibly null. The host must not dereference or free
+    /// Opaque application context pointer, possibly null. The host does not dereference or free
     /// this.
     pub app_ctx: *mut c_void,
     /// Response body delivery, receiving `app_ctx` unchanged. The application supplies it for
@@ -345,9 +351,26 @@ pub struct NsgiResponse {
     pub read_body: NsgiReadResponseBody,
 }
 
+/// The canonical type signature of the application's connection open function.
+///
+/// Every NSGI application provides a C ABI function with this signature:
+///
+/// ```rust,ignore
+/// #[no_mangle]
+/// pub unsafe extern "C" fn nsgi_open_connection() -> *mut c_void { ... }
+/// ```
+///
+/// The host calls it at most once for each transport connection it terminates, before calling
+/// `nsgi_handle` for any request on that connection. A host without transport connections treats
+/// each request as arriving on a connection of its own.
+///
+/// The host orders the call so that state the application wrote during it is visible within every
+/// later call that receives the returned context.
+pub type NsgiOpenConnection = unsafe extern "C" fn() -> *mut c_void;
+
 /// The response is in the response out-parameter and the request is complete.
 pub const NSGI_HANDLE_DONE: i32 = 0;
-/// The application supplies the response later through [`NsgiRequest::respond`], and left the
+/// The application supplies the response later through [`NsgiRequest::respond`], and has left the
 /// response out-parameter untouched.
 pub const NSGI_HANDLE_PENDING: i32 = 1;
 
@@ -367,12 +390,12 @@ pub const NSGI_HANDLE_PENDING: i32 = 1;
 /// has happened.
 ///
 /// It never runs concurrently with the request's `respond` call and never follows one, so a
-/// `respond` call may be waiting on it: it must not wait on anything that path holds, and must not
+/// `respond` call may be waiting on it: it does not wait on anything that path holds, and does not
 /// itself call `respond`.
 ///
-/// The host orders it so that state the host wrote beforehand is visible within it. Against the
-/// application's own work on the request it is not ordered at all, and the request's handles keep
-/// their meanings afterwards and report their own errors.
+/// The host orders the call so that state the host wrote before making it is visible within it.
+/// Against the application's own work on the request it is not ordered at all, and the request's
+/// handles keep their meanings afterwards and report their own errors.
 ///
 /// # Host obligations
 /// A host may reclaim a canceled request once this call has returned, after which a `respond` call
@@ -387,7 +410,7 @@ pub type NsgiCancel = unsafe extern "C" fn(cancel_ctx: *mut c_void);
 /// wanting none leaves it untouched. It is the only out-parameter the host writes before the call.
 #[repr(C)]
 pub struct NsgiPending {
-    /// Opaque application context pointer, possibly null. The host must not dereference or free
+    /// Opaque application context pointer, possibly null. The host does not dereference or free
     /// this.
     pub cancel_ctx: *mut c_void,
     /// Cancellation notice, receiving `cancel_ctx` unchanged. `None` when the application wants
@@ -395,9 +418,9 @@ pub struct NsgiPending {
     pub cancel: Option<NsgiCancel>,
 }
 
-/// The canonical type signature of an NSGI application entry point.
+/// The canonical type signature of the application's entry point.
 ///
-/// Every NSGI application must provide a C ABI function with this signature:
+/// Every NSGI application provides a C ABI function with this signature:
 ///
 /// ```rust,ignore
 /// #[no_mangle]
@@ -412,34 +435,51 @@ pub struct NsgiPending {
 /// rather than a status.
 ///
 /// # Lifetimes
-/// `req` addresses storage the host owns; the application must not free it, and must not hold
-/// references to it or any of its fields after returning, whichever status it returns. `host_ctx`
-/// and the callbacks beside it are values rather than borrowed memory, so an application that
-/// copied them out goes on using them afterwards.
+/// `req` addresses storage the host owns; the application does not free it, and does not hold
+/// references to it or any of its fields after returning, whichever status it returns.
+/// `connection_ctx`, `host_ctx` and the callbacks are values rather than borrowed memory, so an
+/// application that copied them out goes on using them afterwards.
 pub type NsgiApp = unsafe extern "C" fn(
     req: *const NsgiRequest,
     out_res: *mut NsgiResponse,
     out_pending: *mut NsgiPending,
 ) -> i32;
 
-/// The canonical type signature of the NSGI response cleanup function.
+/// The canonical type signature of the application's response cleanup function.
 ///
-/// Every NSGI application must provide a C ABI function with this signature:
+/// Every NSGI application provides a C ABI function with this signature:
 ///
 /// ```rust,ignore
 /// #[no_mangle]
 /// pub unsafe extern "C" fn nsgi_free_response(res: *const NsgiResponse) { ... }
 /// ```
 ///
-/// # Host obligations
-/// The host must call this exactly once for every response the application handed over, through
-/// either path and including one carried by a [`NsgiRequest::respond`] call the host discarded, so
-/// the application can release whatever it allocated. The call comes after the last
-/// [`NsgiResponse::read_body`] call and never concurrently with one, whether or not the body
-/// reached completion.
-///
 /// # Lifetimes
 /// The pointer addresses storage the host owns, borrowed for the duration of the call: the
 /// application releases what the fields point to, not the storage the pointer addresses, and does
 /// not retain the pointer past the return.
+///
+/// # Host obligations
+/// The host calls it exactly once for every response the application handed over, through either
+/// path and including one carried by a [`NsgiRequest::respond`] call the host discarded, so the
+/// application can release whatever it allocated. The call comes after the last
+/// [`NsgiResponse::read_body`] call and never concurrently with one, whether or not the body
+/// reached completion.
 pub type NsgiFreeResponse = unsafe extern "C" fn(*const NsgiResponse);
+
+/// The canonical type signature of the application's connection close function.
+///
+/// Every NSGI application provides a C ABI function with this signature:
+///
+/// ```rust,ignore
+/// #[no_mangle]
+/// pub unsafe extern "C" fn nsgi_close_connection(connection_ctx: *mut c_void) { ... }
+/// ```
+///
+/// The host calls it once for each `nsgi_open_connection` call, after the connection has delivered
+/// its last request and every `nsgi_handle` and `nsgi_free_response` call for its requests has
+/// returned. `connection_ctx` is the value `nsgi_open_connection` returned, passed back unchanged.
+///
+/// The host orders the call so that state the application wrote during those calls is visible
+/// within it.
+pub type NsgiCloseConnection = unsafe extern "C" fn(connection_ctx: *mut c_void);
